@@ -7,8 +7,9 @@ import { defineConfig } from 'astro/config';
 // GitHub Pages routing:
 // - User/Org pages repo: <username>.github.io  -> base = '/'
 // - Project pages repo: <repo>                -> base = '/<repo>/'
-const repo = process.env.GITHUB_REPOSITORY?.split('/')[1];
-const isUserPages = repo?.endsWith('.github.io');
+const owner = process.env.GITHUB_REPOSITORY?.split("/ ")[0];
+const repo = process.env.GITHUB_REPOSITORY?.split("/ ")[1];
+const isUserPages = !!owner && !!repo && repo === `.github.io`;
 const base = isUserPages ? '/' : repo ? `/${repo}/` : '/';
 
 // https://astro.build/config
