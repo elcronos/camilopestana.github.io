@@ -1,0 +1,40 @@
+---
+import Page from '../layouts/Page.astro';
+
+const title = 'Research';
+const description = 'Selected publications and research interests.';
+---
+
+<Page title={title} description={description}>
+	<h1>Research</h1>
+	<p>
+		Selected publications (from LinkedIn). I’ll later add a fuller list + BibTeX and a “research statements” section.
+	</p>
+
+	<ul>
+		<li>
+			<a href="https://ieeexplore.ieee.org/document/9533495" target="_blank" rel="noreferrer">
+				Adversarial Perturbations Prevail in the Y-Channel of the YCbCr Color Space
+			</a>
+			( IJCNN / IEEE Xplore )
+		</li>
+		<li>
+			<a href="https://openaccess.thecvf.com/content/CVPR2021W/LXCV/html/Pestana_Assistive_Signals_for_Deep_Neural_Network_Classifiers_CVPRW_2021_paper.html" target="_blank" rel="noreferrer">
+				Assistive Signals for Deep Neural Network Classifiers
+			</a>
+			(CVPRW 2021)
+		</li>
+		<li>
+			<a href="https://ieeexplore.ieee.org/document/9665819" target="_blank" rel="noreferrer">
+				Attacking Image Classifiers To Generate 3D Textures
+			</a>
+			(3DV 2022)
+		</li>
+		<li>
+			<a href="https://openaccess.thecvf.com/content/WACV2022/html/Pestana_Transferable_3D_Adversarial_Textures_Using_End-to-End_Optimization_WACV_2022_paper.html" target="_blank" rel="noreferrer">
+				Transferable 3D Adversarial Textures using End-to-end Optimization
+			</a>
+			(WACV 2022)
+		</li>
+	</ul>
+</Page>

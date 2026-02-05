@@ -1,0 +1,37 @@
+---
+import Page from '../layouts/Page.astro';
+import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
+---
+
+<Page title={SITE_TITLE} description={SITE_DESCRIPTION}>
+	<section>
+		<h1>Camilo Pestana</h1>
+		<p>
+			AI security + applied AI systems. PhD in AI. I build production-grade ML/GenAI systems and lead teams
+			from research to impact.
+		</p>
+		<p>
+			Currently: <strong>VGW</strong> (per LinkedIn).
+		</p>
+	</section>
+
+	<section>
+		<h2>Highlights</h2>
+		<ul>
+			<li>PhD in AI with publications in adversarial ML / computer vision.</li>
+			<li>Applied AI leadership: systems, reliability, evaluation, and shipping.</li>
+			<li>Talks and community: Perth Machine Learning Group organizer.</li>
+		</ul>
+	</section>
+
+	<section>
+		<h2>Start here</h2>
+		<ul>
+			<li><a href="/about">About</a></li>
+			<li><a href="/research">Research</a> (selected publications)</li>
+			<li><a href="/projects">Projects</a> (selected work)</li>
+			<li><a href="/blog">Blog</a> (coming soon)</li>
+			<li><a href="/contact">Contact</a></li>
+		</ul>
+	</section>
+</Page>
