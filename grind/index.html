@@ -1,0 +1,1852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>grind.py // interview patterns</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+<style>
+  :root {
+    --bg: #0a0e0a;
+    --bg-2: #11161a;
+    --bg-3: #161c20;
+    --ink: #d8e3d8;
+    --ink-dim: #7d8c7d;
+    --ink-faint: #4a544a;
+    --acc: #b8ff5c;      /* neon green */
+    --acc-2: #ff5c8a;    /* hot pink */
+    --acc-3: #5cc8ff;    /* cyan */
+    --warn: #ffb84d;
+    --line: #1f2a22;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --serif: 'Fraunces', Georgia, serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      radial-gradient(circle at 10% 0%, rgba(184,255,92,0.06), transparent 40%),
+      radial-gradient(circle at 90% 100%, rgba(255,92,138,0.05), transparent 40%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: repeating-linear-gradient(
+      0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* === TOP BAR === */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    background: rgba(10,14,10,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .brand .dot { color: var(--acc); }
+  .brand .ext { color: var(--ink-dim); font-style: italic; font-weight: 600; }
+  .topbar-meta {
+    font-size: 11px;
+    color: var(--ink-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    display: flex; gap: 24px; align-items: center;
+  }
+  .pulse {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--acc);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--acc);
+    animation: pulse 2s infinite;
+    margin-right: 6px;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* === LAYOUT === */
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: calc(100vh - 56px);
+    position: relative;
+    z-index: 2;
+  }
+
+  /* === SIDEBAR === */
+  .sidebar {
+    border-right: 1px solid var(--line);
+    padding: 28px 0;
+    background: var(--bg-2);
+    position: sticky; top: 56px;
+    height: calc(100vh - 56px);
+    overflow-y: auto;
+  }
+  .sidebar-section {
+    padding: 0 24px 16px;
+  }
+  .sidebar-label {
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed var(--line);
+  }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 24px;
+    color: var(--ink-dim);
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: all 0.15s;
+    font-size: 13px;
+  }
+  .nav-item:hover {
+    color: var(--ink);
+    background: rgba(184,255,92,0.04);
+  }
+  .nav-item.active {
+    color: var(--acc);
+    background: rgba(184,255,92,0.07);
+    border-left-color: var(--acc);
+  }
+  .nav-item .idx {
+    font-size: 10px;
+    color: var(--ink-faint);
+    width: 18px;
+  }
+  .nav-item.active .idx { color: var(--acc); }
+  .nav-item .check {
+    margin-left: auto;
+    color: var(--acc);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .nav-item.done .check { opacity: 1; }
+
+  /* === MAIN === */
+  .main {
+    padding: 48px 56px 80px;
+    max-width: 980px;
+  }
+  .crumbs {
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    margin-bottom: 16px;
+  }
+  .crumbs span { color: var(--acc); }
+  .lesson-title {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    margin-bottom: 12px;
+  }
+  .lesson-title em {
+    font-style: italic;
+    color: var(--acc);
+    font-weight: 400;
+  }
+  .lesson-sub {
+    color: var(--ink-dim);
+    font-size: 15px;
+    margin-bottom: 40px;
+    max-width: 640px;
+  }
+
+  /* === CONTENT BLOCKS === */
+  h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+    margin: 48px 0 16px;
+    color: var(--ink);
+  }
+  h2::before {
+    content: '§ ';
+    color: var(--acc);
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 0.7em;
+    vertical-align: 6px;
+  }
+  h3 {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--acc);
+    margin: 24px 0 10px;
+  }
+  p { margin-bottom: 14px; color: var(--ink); }
+  p code, li code {
+    background: var(--bg-3);
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: var(--acc);
+    font-size: 0.92em;
+    border: 1px solid var(--line);
+  }
+  ul, ol { padding-left: 22px; margin-bottom: 18px; }
+  li { margin-bottom: 6px; }
+
+  /* === CODE BLOCKS === */
+  pre {
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--acc);
+    border-radius: 4px;
+    padding: 18px 20px;
+    margin: 16px 0;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.55;
+    position: relative;
+  }
+  pre::before {
+    content: 'python';
+    position: absolute;
+    top: 8px; right: 12px;
+    font-size: 9px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  pre code { color: var(--ink); }
+  .tok-kw { color: var(--acc-2); }
+  .tok-fn { color: var(--acc-3); }
+  .tok-str { color: var(--warn); }
+  .tok-num { color: var(--acc); }
+  .tok-com { color: var(--ink-faint); font-style: italic; }
+  .tok-self { color: var(--acc-2); font-style: italic; }
+
+  /* === CALLOUT === */
+  .callout {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--acc-2);
+    background: rgba(255,92,138,0.04);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border-radius: 4px;
+  }
+  .callout-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--acc-2);
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  /* === COMPLEXITY TABLE === */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  th {
+    color: var(--ink-faint);
+    font-weight: 500;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+  td code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--acc);
+  }
+
+  /* === CHALLENGE === */
+  .challenge {
+    margin-top: 40px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg-2);
+    overflow: hidden;
+  }
+  .challenge-head {
+    padding: 18px 22px;
+    background: var(--bg-3);
+    border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .challenge-head h4 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+  }
+  .difficulty {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    padding: 4px 10px;
+    border-radius: 2px;
+    font-weight: 700;
+  }
+  .diff-easy { color: var(--acc); border: 1px solid var(--acc); }
+  .diff-med { color: var(--warn); border: 1px solid var(--warn); }
+  .diff-hard { color: var(--acc-2); border: 1px solid var(--acc-2); }
+  .challenge-body { padding: 22px; }
+  .challenge-prompt {
+    color: var(--ink);
+    margin-bottom: 18px;
+  }
+  .editor-wrap {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    background: #060906;
+  }
+  .editor-tabbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px;
+    background: var(--bg-3);
+    border-bottom: 1px solid var(--line);
+    font-size: 11px;
+    color: var(--ink-faint);
+  }
+  .editor-tabbar .dots {
+    display: flex; gap: 6px;
+  }
+  .editor-tabbar .dots span {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--line);
+  }
+  .editor-tabbar .dots span:nth-child(1) { background: #ff5c5c; }
+  .editor-tabbar .dots span:nth-child(2) { background: var(--warn); }
+  .editor-tabbar .dots span:nth-child(3) { background: var(--acc); }
+  textarea.editor {
+    width: 100%;
+    min-height: 220px;
+    background: transparent;
+    border: 0;
+    padding: 16px 18px;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    resize: vertical;
+    outline: none;
+    tab-size: 4;
+  }
+  .challenge-actions {
+    display: flex; gap: 10px; align-items: center;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  button.btn {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 10px 18px;
+    background: var(--acc);
+    color: #0a0e0a;
+    border: 0;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: all 0.15s;
+  }
+  button.btn:hover {
+    background: #cfff8a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(184,255,92,0.3);
+  }
+  button.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  button.btn-ghost {
+    background: transparent;
+    color: var(--ink-dim);
+    border: 1px solid var(--line);
+  }
+  button.btn-ghost:hover {
+    color: var(--ink);
+    border-color: var(--ink-dim);
+    background: transparent;
+    box-shadow: none;
+  }
+  .console {
+    margin-top: 14px;
+    background: #060906;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 14px 18px;
+    font-size: 12px;
+    min-height: 60px;
+    max-height: 360px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .console-label {
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 8px;
+  }
+  .case-row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--line);
+    align-items: start;
+  }
+  .case-row:last-child { border-bottom: 0; }
+  .case-icon { font-weight: 700; }
+  .case-pass { color: var(--acc); }
+  .case-fail { color: var(--acc-2); }
+  .case-detail { color: var(--ink-dim); font-size: 11px; }
+  .summary {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+  }
+  .summary.ok { color: var(--acc); }
+  .summary.fail { color: var(--acc-2); }
+
+  .loader {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 2px solid var(--line);
+    border-top-color: var(--acc);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+    vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* === PROGRESS === */
+  .progress-wrap {
+    padding: 0 24px 24px;
+  }
+  .progress-bar {
+    height: 4px;
+    background: var(--bg-3);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--acc), var(--acc-3));
+    width: 0%;
+    transition: width 0.4s ease;
+  }
+  .progress-text {
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    display: flex; justify-content: space-between;
+  }
+
+  /* === HOME === */
+  .home-hero {
+    margin-bottom: 40px;
+  }
+  .home-tag {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: var(--acc);
+    border: 1px solid var(--acc);
+    padding: 4px 10px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+  }
+  .home-title {
+    font-family: var(--serif);
+    font-weight: 900;
+    font-size: clamp(48px, 7vw, 96px);
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    margin-bottom: 24px;
+  }
+  .home-title em {
+    font-style: italic;
+    color: var(--acc);
+    font-weight: 400;
+  }
+  .home-title .strike {
+    text-decoration: line-through;
+    text-decoration-color: var(--acc-2);
+    color: var(--ink-dim);
+  }
+  .home-lede {
+    font-size: 17px;
+    color: var(--ink-dim);
+    max-width: 620px;
+    line-height: 1.55;
+    margin-bottom: 32px;
+  }
+  .topic-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 28px;
+  }
+  .topic-card {
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 20px;
+    background: var(--bg-2);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .topic-card:hover {
+    border-color: var(--acc);
+    transform: translateY(-2px);
+  }
+  .topic-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--acc);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+  .topic-card:hover::before { transform: scaleX(1); }
+  .topic-card .idx {
+    font-size: 10px;
+    color: var(--ink-faint);
+    letter-spacing: 0.2em;
+  }
+  .topic-card h4 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 22px;
+    margin: 6px 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .topic-card p {
+    font-size: 12px;
+    color: var(--ink-dim);
+    margin: 0;
+  }
+  .topic-card .meta {
+    margin-top: 14px;
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    display: flex; gap: 14px;
+  }
+
+  /* === FOOTER NAV === */
+  .lesson-footer {
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between; gap: 12px;
+  }
+  .footer-btn {
+    flex: 1;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--bg-2);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .footer-btn:hover {
+    border-color: var(--acc);
+    background: var(--bg-3);
+  }
+  .footer-btn .dir {
+    font-size: 10px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+  .footer-btn .ttl {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--ink);
+  }
+  .footer-btn.next { text-align: right; }
+  .footer-btn.disabled { opacity: 0.3; pointer-events: none; }
+
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; }
+    .sidebar {
+      position: relative;
+      top: 0; height: auto;
+      max-height: 200px;
+    }
+    .main { padding: 32px 22px 60px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">grind<span class="dot">.</span>py<span class="ext"> // patterns</span></div>
+  <div class="topbar-meta">
+    <span><span class="pulse"></span>pyodide live</span>
+    <span id="status-text">ready</span>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">// curriculum</div>
+      <div id="nav-list"></div>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-text">
+        <span>progress</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+  </aside>
+
+  <main class="main" id="main"></main>
+</div>
+
+<script>
+/* ============================================================
+   CURRICULUM DATA
+============================================================ */
+const LESSONS = [
+  {
+    id: 'home',
+    title: 'home',
+    hidden: true,
+  },
+  {
+    id: 'arrays',
+    title: 'arrays & hashmaps',
+    tag: 'foundations',
+    summary: 'Lists you can scan through, and a "dictionary" that finds things instantly. About 1 in 3 interview problems use these.',
+    body: `
+      <h2>What's an array? What's a hashmap?</h2>
+      <p>An <strong>array</strong> (in Python, a <code>list</code>) is just a row of boxes, each holding a value. Like <code>[5, 2, 9, 1]</code>. You access boxes by their position number (called an "index"), starting from 0.</p>
+      <p>A <strong>hashmap</strong> (in Python, a <code>dict</code>) is like a contacts app: instead of position numbers, you look things up by a label. Like <code>{"Sarah": "555-1234", "Mike": "555-9876"}</code>. The trick is that looking something up by its label is <em>instant</em>, no matter how many entries you have.</p>
+      <p>Most interview problems can be solved faster by using a hashmap to remember things you've seen before. That one idea unlocks half of all problems.</p>
+
+      <h2>Pattern 1: Two pointers</h2>
+      <p>Imagine two fingers pointing at the array — one at the start, one at the end. You move them toward each other based on what you find. This works really well when the array is sorted.</p>
+      <p>Example: find two numbers that add to 10 in <code>[1, 3, 5, 7, 9]</code>. Start with fingers on 1 and 9 → that's 10, done. If the sum were too small, move the left finger right (to a bigger number). If too big, move the right finger left.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">two_sum_sorted</span>(arr, target):
+    left, right = <span class="tok-num">0</span>, len(arr) - <span class="tok-num">1</span>
+    <span class="tok-kw">while</span> left &lt; right:
+        s = arr[left] + arr[right]
+        <span class="tok-kw">if</span> s == target:
+            <span class="tok-kw">return</span> [left, right]
+        <span class="tok-kw">elif</span> s &lt; target:
+            left += <span class="tok-num">1</span>
+        <span class="tok-kw">else</span>:
+            right -= <span class="tok-num">1</span>
+    <span class="tok-kw">return</span> []</code></pre>
+
+      <h2>Pattern 2: Remember what you've seen</h2>
+      <p>This is the most useful pattern in all of interview coding. As you walk through the array, write down each value you pass in a hashmap. Then for each new value, you can instantly check: "have I seen something that pairs with this?"</p>
+      <p>Example: in <code>[2, 7, 11, 15]</code>, find two numbers that add to 9. As you visit each number, ask: "is <code>9 - me</code> already in my notes?" When you reach 7, you check for 2 — and yes, you saw 2 earlier. Done.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">two_sum</span>(nums, target):
+    seen = {}  <span class="tok-com"># value -> index</span>
+    <span class="tok-kw">for</span> i, x <span class="tok-kw">in</span> enumerate(nums):
+        complement = target - x
+        <span class="tok-kw">if</span> complement <span class="tok-kw">in</span> seen:
+            <span class="tok-kw">return</span> [seen[complement], i]
+        seen[x] = i
+    <span class="tok-kw">return</span> []</code></pre>
+
+      <h3>Pattern 3: Running totals (prefix sums)</h3>
+      <p>If you're asked sum-related questions over and over on the same array, calculate a "running total" first. Then the sum of any chunk becomes simple subtraction.</p>
+      <p>Example: in <code>[3, 1, 4, 1, 5]</code>, the running totals are <code>[3, 4, 8, 9, 14]</code>. The sum from position 2 to 4 is just <code>14 - 4 = 10</code>. No re-adding needed.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">subarray_sum_k</span>(nums, k):
+    count, prefix = <span class="tok-num">0</span>, <span class="tok-num">0</span>
+    seen = {<span class="tok-num">0</span>: <span class="tok-num">1</span>}  <span class="tok-com"># prefix sum -> frequency</span>
+    <span class="tok-kw">for</span> x <span class="tok-kw">in</span> nums:
+        prefix += x
+        count += seen.get(prefix - k, <span class="tok-num">0</span>)
+        seen[prefix] = seen.get(prefix, <span class="tok-num">0</span>) + <span class="tok-num">1</span>
+    <span class="tok-kw">return</span> count</code></pre>
+
+      <h2>How fast is each operation?</h2>
+      <p>Big-O notation describes how slow things get as your data grows. <code>O(1)</code> = instant. <code>O(n)</code> = slows down linearly. Here's the cheat sheet:</p>
+      <table>
+        <tr><th>What you do</th><th>List</th><th>Dict / Set</th></tr>
+        <tr><td>Find a value</td><td><code>O(n)</code> (have to scan)</td><td><code>O(1)</code> (instant!)</td></tr>
+        <tr><td>Add a value</td><td><code>O(1)</code> at the end</td><td><code>O(1)</code></td></tr>
+        <tr><td>Remove a value</td><td><code>O(n)</code></td><td><code>O(1)</code></td></tr>
+        <tr><td>Go through all values</td><td><code>O(n)</code></td><td><code>O(n)</code></td></tr>
+      </table>
+      <p>This table is why hashmaps are so powerful — finding things is instant.</p>
+
+      <div class="callout">
+        <div class="callout-title">// practice saying this out loud</div>
+        <p>"I'll use a hashmap to remember every number I've seen, with the number as the key and its position as the value. Then for each new number, I'll check if its partner is already in the hashmap. This visits each number once, so it's O(n)."</p>
+      </div>
+    `,
+    challenges: [
+      {
+        title: 'two sum',
+        difficulty: 'easy',
+        prompt: 'Given an array of integers <code>nums</code> and a target, return the indices of the two numbers that add up to <code>target</code>. You may assume exactly one solution exists.',
+        starter: `def two_sum(nums, target):
+    # your code here
+    pass`,
+        fn: 'two_sum',
+        cases: [
+          { args: [[2,7,11,15], 9], expected: [0,1] },
+          { args: [[3,2,4], 6], expected: [1,2] },
+          { args: [[3,3], 6], expected: [0,1] },
+          { args: [[-1,-2,-3,-4,-5], -8], expected: [2,4] },
+        ],
+        normalize: 'sortPair',
+      },
+      {
+        title: 'subarray sum equals k',
+        difficulty: 'medium',
+        prompt: 'Return the total number of contiguous subarrays whose sum equals <code>k</code>. Use prefix sums + a hashmap for O(n).',
+        starter: `def subarray_sum(nums, k):
+    # your code here
+    pass`,
+        fn: 'subarray_sum',
+        cases: [
+          { args: [[1,1,1], 2], expected: 2 },
+          { args: [[1,2,3], 3], expected: 2 },
+          { args: [[1,-1,0], 0], expected: 3 },
+          { args: [[3,4,7,2,-3,1,4,2], 7], expected: 4 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'sliding',
+    title: 'sliding window',
+    tag: 'pattern',
+    summary: 'A "window" that slides over your data, growing and shrinking. Great for finding the longest or shortest streak of something.',
+    body: `
+      <h2>What's a sliding window?</h2>
+      <p>Imagine a magnifying glass that you slide across a row of letters. At any moment, the magnifying glass covers a chunk of letters — that's your "window." You can make the window bigger or smaller as you go.</p>
+      <p>This pattern is perfect when a problem asks about a <strong>continuous chunk</strong> of an array or string — like "the longest streak of...", "the smallest range that contains...", or "the maximum sum of any 5 numbers in a row."</p>
+
+      <h3>Two types of windows</h3>
+      <p><strong>Fixed-size window</strong> — always covers the same number of items. Just slide it along, like dragging a 3-letter window across "HELLOWORLD."</p>
+      <p><strong>Growing/shrinking window</strong> — the window changes size. You stretch the right side to include more items, and pull in the left side when something goes wrong.</p>
+
+      <h3>The growing/shrinking template</h3>
+      <p>The pattern is always the same three steps:</p>
+      <ol>
+        <li><strong>Stretch right:</strong> add the new item to the window</li>
+        <li><strong>Pull in left:</strong> while the window is "broken" (whatever that means for this problem), shrink it from the left</li>
+        <li><strong>Record:</strong> if the window is now the best you've seen, save it</li>
+      </ol>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">longest_valid_window</span>(arr):
+    left = <span class="tok-num">0</span>
+    best = <span class="tok-num">0</span>
+    state = {}  <span class="tok-com"># whatever you need to track</span>
+
+    <span class="tok-kw">for</span> right <span class="tok-kw">in</span> range(len(arr)):
+        <span class="tok-com"># 1) add arr[right] to state</span>
+        state[arr[right]] = state.get(arr[right], <span class="tok-num">0</span>) + <span class="tok-num">1</span>
+
+        <span class="tok-com"># 2) shrink while invariant is violated</span>
+        <span class="tok-kw">while</span> not_valid(state):
+            state[arr[left]] -= <span class="tok-num">1</span>
+            <span class="tok-kw">if</span> state[arr[left]] == <span class="tok-num">0</span>:
+                <span class="tok-kw">del</span> state[arr[left]]
+            left += <span class="tok-num">1</span>
+
+        <span class="tok-com"># 3) update answer with current valid window</span>
+        best = max(best, right - left + <span class="tok-num">1</span>)
+    <span class="tok-kw">return</span> best</code></pre>
+
+      <h3>A real example: longest substring with no repeated letters</h3>
+      <p>For the string <code>"abcabc"</code>, the answer is 3 (the substring "abc"). Here's how the sliding window thinks: stretch right while letters are new, and when you hit a repeat, pull the left side past where you first saw that letter.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">length_of_longest_substring</span>(s):
+    seen = {}
+    left = best = <span class="tok-num">0</span>
+    <span class="tok-kw">for</span> right, ch <span class="tok-kw">in</span> enumerate(s):
+        <span class="tok-kw">if</span> ch <span class="tok-kw">in</span> seen <span class="tok-kw">and</span> seen[ch] &gt;= left:
+            left = seen[ch] + <span class="tok-num">1</span>
+        seen[ch] = right
+        best = max(best, right - left + <span class="tok-num">1</span>)
+    <span class="tok-kw">return</span> best</code></pre>
+
+      <div class="callout">
+        <div class="callout-title">// how to spot this pattern</div>
+        <p>If the problem talks about a <strong>continuous chunk</strong> (subarray, substring) and asks for the longest/shortest/best one that satisfies some rule — it's almost always sliding window.</p>
+      </div>
+    `,
+    challenges: [
+      {
+        title: 'longest substring without repeating',
+        difficulty: 'medium',
+        prompt: 'Return the length of the longest substring of <code>s</code> with no repeated characters.',
+        starter: `def length_of_longest_substring(s):
+    # your code here
+    pass`,
+        fn: 'length_of_longest_substring',
+        cases: [
+          { args: ['abcabcbb'], expected: 3 },
+          { args: ['bbbbb'], expected: 1 },
+          { args: ['pwwkew'], expected: 3 },
+          { args: [''], expected: 0 },
+          { args: ['dvdf'], expected: 3 },
+        ],
+      },
+      {
+        title: 'max sum of k consecutive',
+        difficulty: 'easy',
+        prompt: 'Given <code>nums</code> and integer <code>k</code>, return the maximum sum of any contiguous subarray of length <code>k</code>. (Fixed-size window.)',
+        starter: `def max_sum_subarray(nums, k):
+    # your code here
+    pass`,
+        fn: 'max_sum_subarray',
+        cases: [
+          { args: [[2,1,5,1,3,2], 3], expected: 9 },
+          { args: [[2,3,4,1,5], 2], expected: 7 },
+          { args: [[1,1,1,1,1], 3], expected: 3 },
+          { args: [[5], 1], expected: 5 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'bsearch',
+    title: 'sorting & binary search',
+    tag: 'pattern',
+    summary: 'Put things in order, then find them with the "halve-and-check" trick — like flipping to the middle of a dictionary.',
+    body: `
+      <h2>Sorting</h2>
+      <p>Sorting puts items in order (smallest to largest, A to Z, etc). Python does this for you with <code>sorted()</code>, which gives you a new sorted list, or <code>list.sort()</code>, which rearranges the original.</p>
+      <p>You can also sort by a custom rule using <code>key=</code>. The <code>key</code> is a little function that says "rank items by THIS instead of by the value itself."</p>
+      <pre><code>words = [<span class="tok-str">'banana'</span>, <span class="tok-str">'apple'</span>, <span class="tok-str">'cherry'</span>]
+sorted(words, key=<span class="tok-kw">lambda</span> w: (len(w), w))
+<span class="tok-com"># sort by length first, then alphabetically</span></code></pre>
+      <p>Sorting takes <code>O(n log n)</code> time — fast enough for most problems.</p>
+
+      <h2>Binary search — finding things in a sorted list, fast</h2>
+      <p>Imagine looking up a word in a dictionary. You don't start at page 1 — you flip to the middle, see if your word should be in the left or right half, then repeat. That's binary search.</p>
+      <p>Each guess cuts the remaining options in half. So even in a list of a million items, you'll find it in about 20 guesses. That's the magic of <code>O(log n)</code>.</p>
+
+      <h3>The classic template</h3>
+      <p>Keep two pointers, <code>lo</code> (lowest possible position) and <code>hi</code> (highest possible position). Check the middle. If too small, move <code>lo</code> up. If too big, move <code>hi</code> down. Repeat until you find it or run out of range.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">binary_search</span>(arr, target):
+    lo, hi = <span class="tok-num">0</span>, len(arr) - <span class="tok-num">1</span>
+    <span class="tok-kw">while</span> lo &lt;= hi:
+        mid = (lo + hi) // <span class="tok-num">2</span>
+        <span class="tok-kw">if</span> arr[mid] == target:
+            <span class="tok-kw">return</span> mid
+        <span class="tok-kw">elif</span> arr[mid] &lt; target:
+            lo = mid + <span class="tok-num">1</span>
+        <span class="tok-kw">else</span>:
+            hi = mid - <span class="tok-num">1</span>
+    <span class="tok-kw">return</span> -<span class="tok-num">1</span></code></pre>
+
+      <h3>Binary search on the answer (the sneaky trick)</h3>
+      <p>This sounds weird but it's powerful. Sometimes you're not searching <em>in</em> an array — you're searching for the right <em>answer</em>. If you can quickly check "does X work?" for any candidate X, you can binary search for the smallest X that works.</p>
+      <p>Classic example: Koko the monkey eats bananas. She has <code>h</code> hours and piles of bananas. What's the slowest speed she can eat at and still finish in time? You can't enumerate every speed, but you can binary search: try a speed, check "does she finish in time?", and adjust.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">min_eating_speed</span>(piles, h):
+    <span class="tok-com"># can koko finish at speed k?</span>
+    <span class="tok-kw">def</span> <span class="tok-fn">feasible</span>(k):
+        <span class="tok-kw">return</span> sum((p + k - <span class="tok-num">1</span>) // k <span class="tok-kw">for</span> p <span class="tok-kw">in</span> piles) &lt;= h
+
+    lo, hi = <span class="tok-num">1</span>, max(piles)
+    <span class="tok-kw">while</span> lo &lt; hi:
+        mid = (lo + hi) // <span class="tok-num">2</span>
+        <span class="tok-kw">if</span> feasible(mid):
+            hi = mid
+        <span class="tok-kw">else</span>:
+            lo = mid + <span class="tok-num">1</span>
+    <span class="tok-kw">return</span> lo</code></pre>
+
+      <div class="callout">
+        <div class="callout-title">// avoiding off-by-one bugs</div>
+        <p>The two most common templates:<br>
+        • Looking for an exact match? Use <code>while lo &lt;= hi</code> with <code>hi = len(arr) - 1</code>.<br>
+        • Looking for a boundary or "first thing that satisfies X"? Use <code>while lo &lt; hi</code> with <code>hi = len(arr)</code>.<br>
+        Pick one template, drill it, and stick with it.</p>
+      </div>
+    `,
+    challenges: [
+      {
+        title: 'binary search',
+        difficulty: 'easy',
+        prompt: 'Given a sorted array <code>nums</code> and a <code>target</code>, return the index of <code>target</code> or -1 if not found. Must be O(log n).',
+        starter: `def search(nums, target):
+    # your code here
+    pass`,
+        fn: 'search',
+        cases: [
+          { args: [[-1,0,3,5,9,12], 9], expected: 4 },
+          { args: [[-1,0,3,5,9,12], 2], expected: -1 },
+          { args: [[5], 5], expected: 0 },
+          { args: [[], 1], expected: -1 },
+          { args: [[1,2,3,4,5,6,7,8,9,10], 1], expected: 0 },
+        ],
+      },
+      {
+        title: 'first bad version',
+        difficulty: 'medium',
+        prompt: 'You are given <code>n</code> versions and a function <code>is_bad(v)</code> that returns True if version v is bad. All versions after the first bad one are also bad. Find the first bad version. <strong>Implement <code>first_bad(n, is_bad)</code>.</strong>',
+        starter: `def first_bad(n, is_bad):
+    # binary search for the leftmost v where is_bad(v) is True
+    pass`,
+        fn: 'first_bad',
+        // build cases dynamically: is_bad as a closure on first_bad_at
+        custom: true,
+        cases: [
+          { firstBad: 4, n: 5, expected: 4 },
+          { firstBad: 1, n: 1, expected: 1 },
+          { firstBad: 1702766719, n: 2126753390, expected: 1702766719 },
+          { firstBad: 3, n: 10, expected: 3 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'trees',
+    title: 'trees',
+    tag: 'data structure',
+    summary: 'Upside-down family-tree structures. Once you see the pattern, most tree problems are just 5 lines of recursion.',
+    body: `
+      <h2>What's a tree?</h2>
+      <p>A tree is a structure like a family tree, drawn upside down. There's one node at the top (the "root"), and each node can have children below it. In a <strong>binary tree</strong>, every node has at most 2 children: a left child and a right child.</p>
+      <p>Trees pop up everywhere: file systems (folders inside folders), HTML pages, decision flowcharts, comment threads.</p>
+
+      <h2>How we represent a tree node</h2>
+      <p>Each node is a tiny object that holds its value plus two links — one to its left child, one to its right child.</p>
+      <pre><code><span class="tok-kw">class</span> <span class="tok-fn">TreeNode</span>:
+    <span class="tok-kw">def</span> <span class="tok-fn">__init__</span>(<span class="tok-self">self</span>, val=<span class="tok-num">0</span>, left=<span class="tok-kw">None</span>, right=<span class="tok-kw">None</span>):
+        <span class="tok-self">self</span>.val = val
+        <span class="tok-self">self</span>.left = left
+        <span class="tok-self">self</span>.right = right</code></pre>
+
+      <h2>The three ways to walk a tree</h2>
+      <p>Almost every tree problem starts with "visit every node." There are three classic orders, and the difference is just <em>when</em> you do something with the current node — before its children, between them, or after.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">inorder</span>(node):
+    <span class="tok-kw">if</span> not node: <span class="tok-kw">return</span>
+    inorder(node.left)
+    print(node.val)        <span class="tok-com"># visit between</span>
+    inorder(node.right)
+
+<span class="tok-kw">def</span> <span class="tok-fn">preorder</span>(node):
+    <span class="tok-kw">if</span> not node: <span class="tok-kw">return</span>
+    print(node.val)        <span class="tok-com"># visit first</span>
+    preorder(node.left)
+    preorder(node.right)
+
+<span class="tok-kw">def</span> <span class="tok-fn">postorder</span>(node):
+    <span class="tok-kw">if</span> not node: <span class="tok-kw">return</span>
+    postorder(node.left)
+    postorder(node.right)
+    print(node.val)        <span class="tok-com"># visit last</span></code></pre>
+
+      <h3>Quick facts about each order</h3>
+      <ul>
+        <li><strong>Inorder</strong> on a binary search tree visits values in sorted order. Useful for any "find Kth smallest" problem.</li>
+        <li><strong>Postorder</strong> (kids first) is right when you need answers from children before you can answer for the parent — like "how tall is this subtree?"</li>
+        <li><strong>Preorder</strong> (parent first) fits "pass information down from the top" — like building a path or copying a tree.</li>
+      </ul>
+
+      <h2>The recipe: solve for children, then combine</h2>
+      <p>Almost every tree problem follows the same pattern:</p>
+      <ol>
+        <li>Ask the question of the left child (recursively).</li>
+        <li>Ask the question of the right child (recursively).</li>
+        <li>Combine those answers with the current node to get your answer.</li>
+      </ol>
+      <p>Here's how to compute the <strong>max depth</strong> (how many levels tall is the tree?). The depth of any node is 1 (for itself) plus whichever child is deeper.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">max_depth</span>(root):
+    <span class="tok-kw">if</span> not root:
+        <span class="tok-kw">return</span> <span class="tok-num">0</span>
+    <span class="tok-kw">return</span> <span class="tok-num">1</span> + max(max_depth(root.left), max_depth(root.right))</code></pre>
+
+      <p>And here's <strong>diameter</strong> — the longest path between any two nodes in the tree. Notice the trick: the function returns the depth, but we also update <code>best</code> on the side. That way we collect the answer while still passing useful info up the chain.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">diameter</span>(root):
+    best = [<span class="tok-num">0</span>]
+    <span class="tok-kw">def</span> <span class="tok-fn">depth</span>(node):
+        <span class="tok-kw">if</span> not node: <span class="tok-kw">return</span> <span class="tok-num">0</span>
+        l = depth(node.left)
+        r = depth(node.right)
+        best[<span class="tok-num">0</span>] = max(best[<span class="tok-num">0</span>], l + r)
+        <span class="tok-kw">return</span> <span class="tok-num">1</span> + max(l, r)
+    depth(root)
+    <span class="tok-kw">return</span> best[<span class="tok-num">0</span>]</code></pre>
+
+      <div class="callout">
+        <div class="callout-title">// the most useful tree trick</div>
+        <p>When a problem needs <em>two</em> pieces of info (the answer, plus something to pass up), have your recursive function <strong>return</strong> the thing to pass up, and <strong>update a shared variable</strong> (like <code>best[0]</code>) for the answer. This is how you solve "diameter," "max path sum," and many others.</p>
+      </div>
+    `,
+    challenges: [
+      {
+        title: 'max depth of binary tree',
+        difficulty: 'easy',
+        prompt: 'Return the maximum depth of a binary tree. Trees are passed as nested lists: <code>[val, left, right]</code> or <code>None</code>.',
+        starter: `def max_depth(root):
+    # root is either None or [val, left_subtree, right_subtree]
+    pass`,
+        fn: 'max_depth',
+        cases: [
+          { args: [[3, [9, null, null], [20, [15, null, null], [7, null, null]]]], expected: 3 },
+          { args: [[1, null, [2, null, null]]], expected: 2 },
+          { args: [null], expected: 0 },
+          { args: [[1, null, null]], expected: 1 },
+        ],
+      },
+      {
+        title: 'invert binary tree',
+        difficulty: 'easy',
+        prompt: 'Return the tree with all left/right children swapped. Use the same nested-list format.',
+        starter: `def invert(root):
+    if root is None:
+        return None
+    val, left, right = root
+    # your code here
+    pass`,
+        fn: 'invert',
+        cases: [
+          { args: [[4, [2, [1, null, null], [3, null, null]], [7, [6, null, null], [9, null, null]]]],
+            expected: [4, [7, [9, null, null], [6, null, null]], [2, [3, null, null], [1, null, null]]] },
+          { args: [[2, [1, null, null], [3, null, null]]], expected: [2, [3, null, null], [1, null, null]] },
+          { args: [null], expected: null },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'graphs',
+    title: 'graphs, bfs & dfs',
+    tag: 'pattern',
+    summary: 'Dots connected by lines. BFS explores layer by layer (shortest path). DFS goes deep, then backs up.',
+    body: `
+      <h2>What's a graph?</h2>
+      <p>A graph is just a bunch of dots (called "nodes" or "vertices") connected by lines (called "edges"). Friends on social media, cities connected by roads, web pages linked to each other — all graphs.</p>
+      <p>Trees are actually graphs too — just a special kind with no cycles and exactly one path between any two nodes. Graphs in general can have loops, multiple paths, anything.</p>
+
+      <h2>How to store a graph in code</h2>
+      <p>The most common way is an <strong>adjacency list</strong> — a dictionary where each node maps to a list of its neighbors. So if node 0 connects to 1 and 2, you'd have <code>{0: [1, 2]}</code>.</p>
+      <pre><code><span class="tok-kw">from</span> collections <span class="tok-kw">import</span> defaultdict
+graph = defaultdict(list)
+<span class="tok-kw">for</span> u, v <span class="tok-kw">in</span> edges:
+    graph[u].append(v)
+    graph[v].append(u)  <span class="tok-com"># omit for directed</span></code></pre>
+
+      <h2>BFS — "explore layer by layer"</h2>
+      <p>BFS stands for "Breadth-First Search." Imagine dropping a pebble in a pond — the ripple goes out in layers, hitting nearby spots first, then further ones. That's BFS.</p>
+      <p>Because it explores nearest first, BFS finds the <strong>shortest path</strong> in any graph where edges count equally (no weights). It uses a <code>queue</code> (first-in, first-out — like a line at the store).</p>
+      <pre><code><span class="tok-kw">from</span> collections <span class="tok-kw">import</span> deque
+
+<span class="tok-kw">def</span> <span class="tok-fn">bfs</span>(graph, start):
+    visited = {start}
+    queue = deque([(start, <span class="tok-num">0</span>)])  <span class="tok-com"># (node, distance)</span>
+    <span class="tok-kw">while</span> queue:
+        node, dist = queue.popleft()
+        <span class="tok-kw">for</span> nb <span class="tok-kw">in</span> graph[node]:
+            <span class="tok-kw">if</span> nb <span class="tok-kw">not in</span> visited:
+                visited.add(nb)
+                queue.append((nb, dist + <span class="tok-num">1</span>))</code></pre>
+
+      <h2>DFS — "go deep, then back up"</h2>
+      <p>DFS stands for "Depth-First Search." Imagine walking through a maze: you pick a direction and go as far as you can. Hit a dead end? Back up and try another path. That's DFS.</p>
+      <p>DFS is great for "is there a path?", "find all connected things," "does the graph have a cycle?" — anything where shortest doesn't matter. It naturally uses recursion (the function calls itself), or a stack if you write it without recursion.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">dfs</span>(graph, start):
+    visited = set()
+    <span class="tok-kw">def</span> <span class="tok-fn">visit</span>(node):
+        <span class="tok-kw">if</span> node <span class="tok-kw">in</span> visited:
+            <span class="tok-kw">return</span>
+        visited.add(node)
+        <span class="tok-kw">for</span> nb <span class="tok-kw">in</span> graph[node]:
+            visit(nb)
+    visit(start)
+    <span class="tok-kw">return</span> visited</code></pre>
+
+      <h3>DFS without recursion (using a stack)</h3>
+      <p>Same idea, but you manage the "where to go next" list yourself with a stack (last-in, first-out — like a stack of plates). Useful if the tree is so deep that recursion would crash.</p>
+      <pre><code><span class="tok-kw">def</span> <span class="tok-fn">dfs_iter</span>(graph, start):
+    visited = set()
+    stack = [start]
+    <span class="tok-kw">while</span> stack:
+        node = stack.pop()
+        <span class="tok-kw">if</span> node <span class="tok-kw">in</span> visited:
+            <span class="tok-kw">continue</span>
+        visited.add(node)
+        stack.extend(graph[node])
+    <span class="tok-kw">return</span> visited</code></pre>
+
+      <h2>Grids are graphs in disguise</h2>
+      <p>Whenever you see a 2D grid problem (mazes, islands, paint-bucket-fill), it's a graph. Each cell is a node, and each cell's neighbors are the 4 (or 8) cells around it. Same BFS/DFS rules apply.</p>
+      <p>Classic example: count the number of "islands" in a grid where 1 = land, 0 = water. For each unvisited 1, do DFS to sink the whole island (mark all connected 1s as visited) and add 1 to your count.</p>
+      <pre><code>DIRS = [(-<span class="tok-num">1</span>,<span class="tok-num">0</span>), (<span class="tok-num">1</span>,<span class="tok-num">0</span>), (<span class="tok-num">0</span>,-<span class="tok-num">1</span>), (<span class="tok-num">0</span>,<span class="tok-num">1</span>)]
+
+<span class="tok-kw">def</span> <span class="tok-fn">num_islands</span>(grid):
+    <span class="tok-kw">if</span> not grid: <span class="tok-kw">return</span> <span class="tok-num">0</span>
+    rows, cols = len(grid), len(grid[<span class="tok-num">0</span>])
+    seen = set()
+    <span class="tok-kw">def</span> <span class="tok-fn">sink</span>(r, c):
+        <span class="tok-kw">if</span> (r, c) <span class="tok-kw">in</span> seen <span class="tok-kw">or</span> not (<span class="tok-num">0</span> &lt;= r &lt; rows) \\
+                <span class="tok-kw">or</span> not (<span class="tok-num">0</span> &lt;= c &lt; cols) <span class="tok-kw">or</span> grid[r][c] != <span class="tok-str">'1'</span>:
+            <span class="tok-kw">return</span>
+        seen.add((r, c))
+        <span class="tok-kw">for</span> dr, dc <span class="tok-kw">in</span> DIRS: sink(r+dr, c+dc)
+    count = <span class="tok-num">0</span>
+    <span class="tok-kw">for</span> r <span class="tok-kw">in</span> range(rows):
+        <span class="tok-kw">for</span> c <span class="tok-kw">in</span> range(cols):
+            <span class="tok-kw">if</span> grid[r][c] == <span class="tok-str">'1'</span> <span class="tok-kw">and</span> (r,c) <span class="tok-kw">not in</span> seen:
+                sink(r, c); count += <span class="tok-num">1</span>
+    <span class="tok-kw">return</span> count</code></pre>
+    `,
+    challenges: [
+      {
+        title: 'number of islands',
+        difficulty: 'medium',
+        prompt: 'Given a 2D grid of <code>"1"</code>s (land) and <code>"0"</code>s (water), count the number of islands. An island is land connected horizontally/vertically.',
+        starter: `def num_islands(grid):
+    # your code here
+    pass`,
+        fn: 'num_islands',
+        cases: [
+          { args: [[["1","1","1","1","0"],["1","1","0","1","0"],["1","1","0","0","0"],["0","0","0","0","0"]]], expected: 1 },
+          { args: [[["1","1","0","0","0"],["1","1","0","0","0"],["0","0","1","0","0"],["0","0","0","1","1"]]], expected: 3 },
+          { args: [[["0"]]], expected: 0 },
+          { args: [[]], expected: 0 },
+        ],
+      },
+      {
+        title: 'shortest path in binary matrix',
+        difficulty: 'medium',
+        prompt: 'In a grid of 0s and 1s (0 = walkable, 1 = blocked), return the length of the shortest path from <code>(0,0)</code> to <code>(n-1, n-1)</code> moving in 8 directions. Return -1 if impossible.',
+        starter: `def shortest_path(grid):
+    # bfs from (0,0); 8 directions
+    pass`,
+        fn: 'shortest_path',
+        cases: [
+          { args: [[[0,1],[1,0]]], expected: 2 },
+          { args: [[[0,0,0],[1,1,0],[1,1,0]]], expected: 4 },
+          { args: [[[1,0,0],[1,1,0],[1,1,0]]], expected: -1 },
+          { args: [[[0]]], expected: 1 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'complexity',
+    title: 'time & space complexity',
+    tag: 'fundamentals',
+    summary: 'How to describe "how slow your code gets when data grows." The language every interviewer wants you to speak.',
+    body: `
+      <h2>What is Big-O really?</h2>
+      <p>Big-O is just a way to describe <strong>how slow your code gets as the data grows</strong>. We don't care about exact timing — we care about the shape of the slowdown.</p>
+      <p>If your code takes the same time whether you have 10 items or 10 million, that's <code>O(1)</code>. If doubling the data doubles the time, that's <code>O(n)</code>. If doubling the data quadruples the time, that's <code>O(n²)</code> — danger zone.</p>
+
+      <h2>The lineup you need to memorize</h2>
+      <table>
+        <tr><th>Notation</th><th>Name</th><th>What it means</th><th>1 million items</th></tr>
+        <tr><td><code>O(1)</code></td><td>constant</td><td>always the same speed</td><td>instant</td></tr>
+        <tr><td><code>O(log n)</code></td><td>logarithmic</td><td>halve the work each step</td><td>~20 ops</td></tr>
+        <tr><td><code>O(n)</code></td><td>linear</td><td>visit each item once</td><td>1M ops</td></tr>
+        <tr><td><code>O(n log n)</code></td><td>linearithmic</td><td>good sorting speed</td><td>~20M ops</td></tr>
+        <tr><td><code>O(n²)</code></td><td>quadratic</td><td>nested loops over data</td><td>too slow!</td></tr>
+        <tr><td><code>O(2^n)</code></td><td>exponential</td><td>brute-force every choice</td><td>only ok for n &lt; 30</td></tr>
+      </table>
+
+      <h2>How to figure out Big-O for your code</h2>
+      <ol>
+        <li><strong>Count nested loops.</strong> One loop through n items? <code>O(n)</code>. Two nested loops? <code>O(n²)</code>. Three? <code>O(n³)</code>.</li>
+        <li><strong>Watch what's inside the loop.</strong> If your loop has an <code>O(n)</code> operation inside (like searching a list), the whole thing becomes <code>O(n²)</code>.</li>
+        <li><strong>Recursion makes a tree.</strong> If your function calls itself twice each time, and the depth is <code>log n</code>, you have about <code>n</code> total calls.</li>
+        <li><strong>Drop constants.</strong> <code>3n + 5</code> is still just <code>O(n)</code>. <code>n² + n</code> is just <code>O(n²)</code>. We only care about what dominates as n gets huge.</li>
+      </ol>
+
+      <h3>Gotchas to watch for</h3>
+      <ul>
+        <li><code>"a" + "b"</code> creates a brand new string each time — slow in loops. Use <code>"".join(list)</code> instead.</li>
+        <li><code>x in some_list</code> is slow (<code>O(n)</code>). <code>x in some_set</code> is instant (<code>O(1)</code>).</li>
+        <li><code>list.pop(0)</code> shifts every remaining item — slow. Use <code>deque.popleft()</code> for instant.</li>
+        <li>Sorting can't be faster than <code>O(n log n)</code> in general. Don't try to beat it without a special trick.</li>
+      </ul>
+
+      <h2>Space complexity</h2>
+      <p>Same idea, but for memory instead of time. Count any extra data structures you create (lists, dicts, sets), plus how deep your recursion goes — every recursive call takes a tiny bit of memory.</p>
+
+      <div class="callout">
+        <div class="callout-title">// practice drill</div>
+        <p>For every problem you solve, say the Big-O out loud before you run it. "O(n) time because I loop through once. O(n) space because the hashmap could hold up to n entries." This habit alone separates good from great in interviews.</p>
+      </div>
+    `,
+    challenges: [
+      {
+        title: 'identify the complexity',
+        difficulty: 'easy',
+        prompt: 'Implement <code>complexity_of(label)</code> that returns the time complexity as a string for the given algorithm label. Labels: <code>"binary_search"</code>, <code>"merge_sort"</code>, <code>"bubble_sort"</code>, <code>"hashmap_lookup"</code>, <code>"linear_scan"</code>. Use Big-O strings: <code>"O(1)"</code>, <code>"O(log n)"</code>, <code>"O(n)"</code>, <code>"O(n log n)"</code>, <code>"O(n^2)"</code>.',
+        starter: `def complexity_of(label):
+    # return the Big-O time complexity as a string
+    pass`,
+        fn: 'complexity_of',
+        cases: [
+          { args: ['binary_search'], expected: 'O(log n)' },
+          { args: ['merge_sort'], expected: 'O(n log n)' },
+          { args: ['bubble_sort'], expected: 'O(n^2)' },
+          { args: ['hashmap_lookup'], expected: 'O(1)' },
+          { args: ['linear_scan'], expected: 'O(n)' },
+        ],
+      },
+      {
+        title: 'optimize me — duplicates',
+        difficulty: 'easy',
+        prompt: 'Naive <code>contains_duplicate</code> is O(n²). Make it O(n). Return True if any value appears twice in the array.',
+        starter: `def contains_duplicate(nums):
+    # O(n) please
+    pass`,
+        fn: 'contains_duplicate',
+        cases: [
+          { args: [[1,2,3,1]], expected: true },
+          { args: [[1,2,3,4]], expected: false },
+          { args: [[]], expected: false },
+          { args: [[1,1,1,3,3,4,3,2,4,2]], expected: true },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'pythonic',
+    title: 'clean python',
+    tag: 'craft',
+    summary: 'Python shortcuts and helpers that turn 10 lines into 1. Interviewers notice when your code reads smoothly.',
+    body: `
+      <h2>Python gives you superpowers — use them</h2>
+      <p>Python comes with a toolbox of helpers that turn 10 lines of code into 1. Knowing these tools makes your code shorter, clearer, and faster to write — interviewers love it.</p>
+
+      <h3>Counter — count things in one line</h3>
+      <p>Counter is like a frequency table. Give it any list or string, and it tells you how many of each thing you have.</p>
+      <pre><code>Counter(<span class="tok-str">'abracadabra'</span>)
+<span class="tok-com"># Counter({'a': 5, 'b': 2, 'r': 2, 'c': 1, 'd': 1})</span>
+
+Counter(<span class="tok-str">'abracadabra'</span>).most_common(<span class="tok-num">2</span>)
+<span class="tok-com"># [('a', 5), ('b', 2)]</span></code></pre>
+
+      <h3>defaultdict — never worry about missing keys</h3>
+      <p>Normal dicts crash if you try to access a key that doesn't exist. A defaultdict automatically creates one for you — empty list, zero, whatever you specify. Saves a ton of "if key in dict" checks.</p>
+      <pre><code>groups = defaultdict(list)
+<span class="tok-kw">for</span> word <span class="tok-kw">in</span> words:
+    groups[sorted_key(word)].append(word)</code></pre>
+
+      <h3>deque — a fast queue</h3>
+      <p>Regular lists are slow when adding/removing from the front (have to shift everything). A deque is built for both ends — pushing or popping from either side is instant.</p>
+      <pre><code>q = deque([<span class="tok-num">1</span>,<span class="tok-num">2</span>,<span class="tok-num">3</span>])
+q.appendleft(<span class="tok-num">0</span>)   <span class="tok-com"># [0,1,2,3]</span>
+q.pop()           <span class="tok-com"># 3</span>
+q.popleft()       <span class="tok-com"># 0</span></code></pre>
+
+      <h3>heapq — always get the smallest item fast</h3>
+      <p>A heap is like a magic bag: throw any number in, and you can pull out the smallest one instantly. Perfect for "top K" problems or anything that needs to keep returning the next-smallest. (For largest instead, just store negative numbers.)</p>
+      <pre><code>h = []
+heappush(h, <span class="tok-num">3</span>); heappush(h, <span class="tok-num">1</span>); heappush(h, <span class="tok-num">2</span>)
+heappop(h)  <span class="tok-com"># 1</span></code></pre>
+
+      <h2>Shortcuts that save you typing</h2>
+      <p>Little Python tricks that show you know the language. Sprinkle these in and your code instantly looks more polished.</p>
+      <pre><code><span class="tok-com"># enumerate, don't manually index</span>
+<span class="tok-kw">for</span> i, x <span class="tok-kw">in</span> enumerate(arr): ...
+
+<span class="tok-com"># zip parallel iterables</span>
+<span class="tok-kw">for</span> a, b <span class="tok-kw">in</span> zip(arr1, arr2): ...
+
+<span class="tok-com"># dict comprehension</span>
+squared = {k: v*v <span class="tok-kw">for</span> k, v <span class="tok-kw">in</span> d.items()}
+
+<span class="tok-com"># walrus for "use and check"</span>
+<span class="tok-kw">while</span> (line := f.readline()):
+    process(line)
+
+<span class="tok-com"># unpacking</span>
+first, *rest = [<span class="tok-num">1</span>, <span class="tok-num">2</span>, <span class="tok-num">3</span>, <span class="tok-num">4</span>]  <span class="tok-com"># first=1, rest=[2,3,4]</span></code></pre>
+
+      <div class="callout">
+        <div class="callout-title">// rules for readable code</div>
+        <p>Name variables for <em>what they hold</em> (<code>seen</code>, <code>counts</code>, <code>queue</code>) — not vague names like <code>data</code> or <code>my_dict</code>. Single letters are only ok for loop indices (<code>i, j, k</code>). And whenever you can return early to skip a long block of nested if-statements, do it — flat code reads better than deeply nested code.</p>
+      </div>
+    `,
+    challenges: [
+      {
+        title: 'group anagrams',
+        difficulty: 'medium',
+        prompt: 'Group an array of strings into anagram groups. Return a list of groups (order within and between groups does not matter — tests will sort).',
+        starter: `def group_anagrams(strs):
+    # use a defaultdict keyed on sorted letters
+    pass`,
+        fn: 'group_anagrams',
+        cases: [
+          { args: [['eat','tea','tan','ate','nat','bat']], expected: [['ate','eat','tea'],['bat'],['nat','tan']] },
+          { args: [['']], expected: [['']] },
+          { args: [['a']], expected: [['a']] },
+        ],
+        normalize: 'sortGroups',
+      },
+      {
+        title: 'top k frequent',
+        difficulty: 'medium',
+        prompt: 'Given an integer array <code>nums</code> and integer <code>k</code>, return the <code>k</code> most frequent elements. Order does not matter.',
+        starter: `def top_k_frequent(nums, k):
+    # Counter + most_common is the one-liner
+    pass`,
+        fn: 'top_k_frequent',
+        cases: [
+          { args: [[1,1,1,2,2,3], 2], expected: [1,2] },
+          { args: [[1], 1], expected: [1] },
+          { args: [[4,1,-1,2,-1,2,3], 2], expected: [-1,2] },
+        ],
+        normalize: 'sortArr',
+      },
+    ],
+  },
+  {
+    id: 'talking',
+    title: 'thinking aloud',
+    tag: 'meta',
+    summary: 'Explaining your thinking out loud as you code. The single biggest difference between "okay candidate" and "hired."',
+    body: `
+      <h2>Why this skill matters most</h2>
+      <p>Here's the open secret of coding interviews: the interviewer cares almost as much about <em>how you think</em> as whether you solve the problem. If you sit silently for 10 minutes and then write perfect code, you'll often lose to someone who walked through their thinking out loud — even if their code is messier.</p>
+      <p>The good news: thinking out loud is a skill you can practice, just like coding.</p>
+
+      <h2>The 5 phases of a great interview answer</h2>
+
+      <h3>Phase 1: Restate the problem (15 seconds)</h3>
+      <p>Repeat the problem back in your own words. This shows you understood, catches misunderstandings early, and buys you thinking time.</p>
+      <p>Example: <em>"So the problem is: given an array of numbers and a target, find two numbers in the array that add to the target, and return their positions. You're saying exactly one valid pair exists — got it."</em></p>
+
+      <h3>Phase 2: Ask clarifying questions (30 seconds)</h3>
+      <p>Even if you think you know, ask at least 2 questions. It shows you care about edge cases.</p>
+      <ul>
+        <li>"How big can the input get?" (Helps you figure out what speed is needed.)</li>
+        <li>"Can there be duplicates? Negative numbers?"</li>
+        <li>"What should I return if there's no answer?"</li>
+        <li>"Am I allowed to change the input?"</li>
+      </ul>
+
+      <h3>Phase 3: Start with the obvious (slow) solution (1 minute)</h3>
+      <p>Always describe a brute-force solution first, even if you know a better one. It anchors you and shows the interviewer you can break the problem down.</p>
+      <p>Example: <em>"The obvious approach is to check every pair — two nested loops. That works but it's O(n²). Let me see if I can do better."</em></p>
+
+      <h3>Phase 4: Find the better solution (2 minutes)</h3>
+      <p>Now narrate your thinking as you find the trick. Where's the bottleneck? Can a different data structure speed it up?</p>
+      <p>Example: <em>"The slow part is searching for the partner number. If I could check 'have I seen its partner?' instantly, I'd be O(n). A hashmap does instant lookups. So: walk through the array once, and for each number, check if its partner is already in the hashmap."</em></p>
+
+      <h3>Phase 5: Write the code, narrating intent (5-10 minutes)</h3>
+      <p>This is the hardest part. Don't read out your code character by character. Instead, describe what you're <em>trying to do</em>:</p>
+      <p><strong>Bad:</strong> "Now I write 'for i comma x in enumerate nums colon'..."</p>
+      <p><strong>Good:</strong> "I'll loop through with both index and value — I'll need both. For each number, before adding it to my map, I'll check if its partner is already there — that way I don't accidentally match a number with itself."</p>
+
+      <h2>What to say when you're stuck</h2>
+      <p>Silence is the enemy. If you're stuck, narrate the stuck-ness — interviewers love this because they can help.</p>
+      <ul>
+        <li>"Let me try a small example to see if I can spot a pattern." Then trace through one on paper.</li>
+        <li>"I'm trying to figure out what data structure would make this operation faster."</li>
+        <li>"This feels like a [sliding window / BFS / etc.] problem because [reason]. Let me see if that fits."</li>
+        <li>"Let me restate what I'm trying to keep true at each step..."</li>
+      </ul>
+
+      <h2>What to do after you finish</h2>
+      <ul>
+        <li>Trace through a test case out loud, narrating what each variable holds at each step.</li>
+        <li>Say the Big-O: "This is O(n) time and O(n) space."</li>
+        <li>Mention edge cases you considered: "I want to make sure it handles empty input, a single element, all duplicates..."</li>
+        <li>Suggest improvements: "If memory were tight, I could use less space by..."</li>
+      </ul>
+
+      <div class="callout">
+        <div class="callout-title">// how to actually get better at this</div>
+        <p>Record yourself solving 3 problems out loud each week. Yes, just talking to your phone. Watch the videos back. It will feel awkward — that's exactly why it works. The gap between "I can solve this alone" and "I can solve this while a stranger watches and judges" only closes through reps.</p>
+      </div>
+
+      <h2>Magic phrases to memorize</h2>
+      <ul>
+        <li><strong>"My initial approach would be..."</strong> — signals you're starting with a baseline</li>
+        <li><strong>"The key observation is..."</strong> — signals you found the trick</li>
+        <li><strong>"The invariant I want to maintain is..."</strong> — shows you think carefully</li>
+        <li><strong>"Let me sanity-check with a small example..."</strong> — shows discipline</li>
+        <li><strong>"In a real codebase, I'd also want to handle..."</strong> — shows seniority</li>
+      </ul>
+    `,
+    challenges: [
+      {
+        title: 'the talk-track drill',
+        difficulty: 'easy',
+        prompt: 'Solve "valid parentheses" — given a string of <code>()[]{}</code>, return True if brackets are properly matched and closed. <strong>While you code, narrate every step out loud.</strong> Imagine an interviewer watching. Use a stack.',
+        starter: `def is_valid(s):
+    # stack-based bracket matching
+    # while you write this, talk through:
+    #   1) the approach (stack of expected closers)
+    #   2) why a stack (LIFO matches nesting)
+    #   3) complexity (O(n) time, O(n) space)
+    pass`,
+        fn: 'is_valid',
+        cases: [
+          { args: ['()'], expected: true },
+          { args: ['()[]{}'], expected: true },
+          { args: ['(]'], expected: false },
+          { args: ['([)]'], expected: false },
+          { args: ['{[]}'], expected: true },
+          { args: [''], expected: true },
+          { args: ['('], expected: false },
+        ],
+      },
+    ],
+  },
+];
+
+/* ============================================================
+   STATE
+============================================================ */
+const state = {
+  active: 'home',
+  completed: new Set(JSON.parse(localStorage.getItem('grind:completed') || '[]')),
+  pyodide: null,
+  pyodideReady: false,
+};
+
+/* ============================================================
+   PYODIDE
+============================================================ */
+async function bootPyodide() {
+  const status = document.getElementById('status-text');
+  status.textContent = 'booting python...';
+  try {
+    state.pyodide = await loadPyodide();
+    state.pyodideReady = true;
+    status.innerHTML = '<span style="color:var(--acc)">python 3.12 ready</span>';
+  } catch (e) {
+    status.innerHTML = '<span style="color:var(--acc-2)">python failed to load</span>';
+    console.error(e);
+  }
+}
+
+/* ============================================================
+   RENDER: SIDEBAR
+============================================================ */
+function renderSidebar() {
+  const nav = document.getElementById('nav-list');
+  const visible = LESSONS.filter(l => !l.hidden);
+  nav.innerHTML = visible.map((l, i) => `
+    <div class="nav-item ${state.active === l.id ? 'active' : ''} ${state.completed.has(l.id) ? 'done' : ''}"
+         data-id="${l.id}">
+      <span class="idx">${String(i+1).padStart(2,'0')}</span>
+      <span>${l.title}</span>
+      <span class="check">✓</span>
+    </div>
+  `).join('');
+  nav.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.id));
+  });
+  // progress
+  const total = visible.length;
+  const done = visible.filter(l => state.completed.has(l.id)).length;
+  const pct = Math.round((done / total) * 100);
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
+}
+
+/* ============================================================
+   RENDER: MAIN
+============================================================ */
+function navigate(id) {
+  state.active = id;
+  renderSidebar();
+  if (id === 'home') renderHome();
+  else renderLesson(id);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderHome() {
+  const visible = LESSONS.filter(l => !l.hidden);
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="home-hero">
+      <span class="home-tag">// 8 lessons · 14 problems · live python</span>
+      <h1 class="home-title">
+        crack the <em>coding</em><br>
+        interview, <span class="strike">eventually</span> now.
+      </h1>
+      <p class="home-lede">
+        A no-fluff curriculum on the patterns that show up in every technical interview.
+        Read the lesson, write the code, see it run against test cases — all in your browser.
+        Designed for people who learn by typing.
+      </p>
+    </div>
+
+    <h2>The curriculum</h2>
+    <div class="topic-grid">
+      ${visible.map((l, i) => `
+        <div class="topic-card" data-id="${l.id}">
+          <div class="idx">${String(i+1).padStart(2,'0')} / ${String(visible.length).padStart(2,'0')} · ${l.tag}</div>
+          <h4>${l.title}</h4>
+          <p>${l.summary}</p>
+          <div class="meta">
+            <span>${(l.challenges || []).length} problems</span>
+            <span>${state.completed.has(l.id) ? '✓ done' : 'unstarted'}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  main.querySelectorAll('.topic-card').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.id));
+  });
+}
+
+function renderLesson(id) {
+  const lesson = LESSONS.find(l => l.id === id);
+  if (!lesson) return;
+  const visible = LESSONS.filter(l => !l.hidden);
+  const idx = visible.findIndex(l => l.id === id);
+  const prev = idx > 0 ? visible[idx - 1] : null;
+  const next = idx < visible.length - 1 ? visible[idx + 1] : null;
+
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="crumbs">curriculum / <span>${String(idx+1).padStart(2,'0')}. ${lesson.title}</span></div>
+    <h1 class="lesson-title">${lesson.title.replace(/&/g, '<em>&</em>')}</h1>
+    <p class="lesson-sub">${lesson.summary}</p>
+    ${lesson.body}
+    <h2>problems</h2>
+    <div id="challenges"></div>
+    <div class="lesson-footer">
+      <button class="footer-btn ${prev ? '' : 'disabled'}" data-id="${prev?.id || ''}">
+        <div class="dir">← previous</div>
+        <div class="ttl">${prev ? prev.title : '—'}</div>
+      </button>
+      <button class="footer-btn next ${next ? '' : 'disabled'}" data-id="${next?.id || ''}">
+        <div class="dir">next →</div>
+        <div class="ttl">${next ? next.title : '—'}</div>
+      </button>
+    </div>
+  `;
+  // render challenges
+  const cwrap = document.getElementById('challenges');
+  (lesson.challenges || []).forEach((c, i) => {
+    cwrap.appendChild(renderChallenge(c, `${id}-${i}`));
+  });
+  // footer nav
+  main.querySelectorAll('.footer-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      if (b.dataset.id) navigate(b.dataset.id);
+    });
+  });
+}
+
+/* ============================================================
+   RENDER: CHALLENGE
+============================================================ */
+function renderChallenge(ch, key) {
+  const el = document.createElement('div');
+  el.className = 'challenge';
+  const diffClass = ch.difficulty === 'easy' ? 'diff-easy'
+                    : ch.difficulty === 'medium' ? 'diff-med' : 'diff-hard';
+  el.innerHTML = `
+    <div class="challenge-head">
+      <h4>${ch.title}</h4>
+      <span class="difficulty ${diffClass}">${ch.difficulty}</span>
+    </div>
+    <div class="challenge-body">
+      <div class="challenge-prompt">${ch.prompt}</div>
+      <div class="editor-wrap">
+        <div class="editor-tabbar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <span>solution.py</span>
+        </div>
+        <textarea class="editor" spellcheck="false">${ch.starter}</textarea>
+      </div>
+      <div class="challenge-actions">
+        <button class="btn run-btn">run tests</button>
+        <button class="btn btn-ghost reset-btn">reset</button>
+        <button class="btn btn-ghost show-btn">show hint</button>
+      </div>
+      <div class="console" style="display:none">
+        <div class="console-label">// output</div>
+        <div class="console-body"></div>
+      </div>
+    </div>
+  `;
+  const editor = el.querySelector('.editor');
+  const runBtn = el.querySelector('.run-btn');
+  const resetBtn = el.querySelector('.reset-btn');
+  const showBtn = el.querySelector('.show-btn');
+  const consoleEl = el.querySelector('.console');
+  const consoleBody = el.querySelector('.console-body');
+
+  // tab key inserts 4 spaces
+  editor.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, e2 = editor.selectionEnd;
+      editor.value = editor.value.slice(0, s) + '    ' + editor.value.slice(e2);
+      editor.selectionStart = editor.selectionEnd = s + 4;
+    }
+  });
+
+  runBtn.addEventListener('click', () => runChallenge(ch, key, editor, consoleEl, consoleBody, runBtn));
+  resetBtn.addEventListener('click', () => { editor.value = ch.starter; consoleEl.style.display = 'none'; });
+  showBtn.addEventListener('click', () => {
+    consoleEl.style.display = 'block';
+    consoleBody.innerHTML = `<div style="color:var(--ink-dim);font-size:12px">
+      <strong style="color:var(--acc-3)">// hint:</strong>
+      ${getHint(ch)}
+    </div>`;
+  });
+  return el;
+}
+
+/* ============================================================
+   HINTS
+============================================================ */
+function getHint(ch) {
+  const hints = {
+    'two_sum': 'Loop with enumerate. Keep a dict mapping value → index. For each x, check if (target - x) is already in the dict before inserting x.',
+    'subarray_sum': 'Maintain a running prefix sum. For each prefix, the count of subarrays ending here that sum to k equals the number of times (prefix - k) has appeared before. Store prefix → frequency in a dict, initialized with {0: 1}.',
+    'length_of_longest_substring': 'Sliding window with a dict mapping character → last-seen index. When you see a repeat that\'s inside the window, move left to one past the previous occurrence.',
+    'max_sum_subarray': 'Compute the first window\'s sum, then slide: subtract the leaving element, add the entering element. One pass after the initial window.',
+    'search': 'Classic binary search. lo=0, hi=len-1, while lo<=hi.',
+    'first_bad': 'Binary search for the boundary. lo=1, hi=n. Use while lo<hi, and when is_bad(mid), set hi=mid (not mid-1).',
+    'max_depth': 'Recursive: if root is None return 0. Otherwise unpack [val, left, right] and return 1 + max(max_depth(left), max_depth(right)).',
+    'invert': 'Recursive: unpack [val, left, right], swap the recursive results.',
+    'num_islands': 'For each cell that is "1" and unvisited, do DFS/BFS sinking the whole island. Count how many times you start one.',
+    'shortest_path': 'BFS from (0,0). 8 directions. Each step adds 1 to distance. Track visited. Return -1 if you never reach (n-1, n-1).',
+    'complexity_of': 'Just a lookup table — return the string for each label.',
+    'contains_duplicate': 'One pass, a set. If you see something already in the set, return True. Or just compare len(set(nums)) to len(nums).',
+    'group_anagrams': 'defaultdict(list). Key each word by tuple(sorted(word)) or "".join(sorted(word)). Return list of values.',
+    'top_k_frequent': 'Counter(nums).most_common(k) — then extract the keys.',
+    'is_valid': 'Stack of expected closing brackets. When you see an opener, push its matching closer. When you see a closer, it must match the top of the stack.',
+  };
+  return hints[ch.fn] || 'No hint available.';
+}
+
+/* ============================================================
+   RUN A CHALLENGE
+============================================================ */
+async function runChallenge(ch, key, editor, consoleEl, consoleBody, runBtn) {
+  consoleEl.style.display = 'block';
+  consoleBody.innerHTML = '<div><span class="loader"></span>running...</div>';
+
+  if (!state.pyodideReady) {
+    consoleBody.innerHTML = '<div style="color:var(--warn)">python is still loading — try again in a moment</div>';
+    return;
+  }
+
+  runBtn.disabled = true;
+  const userCode = editor.value;
+
+  let results = [];
+  let allPass = true;
+
+  for (let i = 0; i < ch.cases.length; i++) {
+    const tc = ch.cases[i];
+    try {
+      const { passed, got, expected, error } = await runCase(ch, tc, userCode);
+      if (!passed) allPass = false;
+      results.push({ idx: i+1, passed, got, expected, error, tc });
+    } catch (e) {
+      allPass = false;
+      results.push({ idx: i+1, passed: false, error: String(e), tc });
+    }
+  }
+
+  // render
+  const rows = results.map(r => {
+    const argsStr = r.tc.custom
+      ? `first_bad=${r.tc.firstBad}, n=${r.tc.n}`
+      : (r.tc.args || []).map(a => formatVal(a)).join(', ');
+    if (r.error) {
+      return `<div class="case-row">
+        <span class="case-icon case-fail">✗</span>
+        <div>
+          <div><span style="color:var(--ink-dim)">case ${r.idx}:</span> <code style="color:var(--ink)">${escapeHtml(argsStr)}</code></div>
+          <div class="case-detail" style="color:var(--acc-2)">error: ${escapeHtml(r.error.split('\\n').slice(-3).join(' '))}</div>
+        </div>
+        <span class="case-detail">error</span>
+      </div>`;
+    }
+    return `<div class="case-row">
+      <span class="case-icon ${r.passed ? 'case-pass' : 'case-fail'}">${r.passed ? '✓' : '✗'}</span>
+      <div>
+        <div><span style="color:var(--ink-dim)">case ${r.idx}:</span> <code style="color:var(--ink)">${escapeHtml(argsStr)}</code></div>
+        ${!r.passed ? `<div class="case-detail">expected <code style="color:var(--acc)">${escapeHtml(formatVal(r.expected))}</code> · got <code style="color:var(--acc-2)">${escapeHtml(formatVal(r.got))}</code></div>` : ''}
+      </div>
+      <span class="case-detail">${r.passed ? 'pass' : 'fail'}</span>
+    </div>`;
+  }).join('');
+
+  const passCount = results.filter(r => r.passed).length;
+  consoleBody.innerHTML = `
+    <div class="console-label">// output</div>
+    ${rows}
+    <div class="summary ${allPass ? 'ok' : 'fail'}">
+      ${allPass ? '✓ all tests passed' : `✗ ${passCount} / ${results.length} passed`}
+    </div>
+  `;
+
+  if (allPass) {
+    // mark lesson done if all challenges in it pass — for simplicity, mark on any solve
+    const lessonId = key.split('-')[0];
+    state.completed.add(lessonId);
+    localStorage.setItem('grind:completed', JSON.stringify([...state.completed]));
+    renderSidebar();
+  }
+
+  runBtn.disabled = false;
+}
+
+/* ============================================================
+   RUN ONE CASE
+============================================================ */
+async function runCase(ch, tc, userCode) {
+  const py = state.pyodide;
+
+  // build a tiny test harness
+  // we pass args as JSON, parse in python, call the function, return JSON
+  const argsJson = JSON.stringify(tc.args || []);
+
+  let setupCode = '';
+  let callCode = '';
+
+  if (ch.fn === 'first_bad') {
+    // special: function takes (n, is_bad) where is_bad is a closure
+    setupCode = `
+_first_bad_at = ${tc.firstBad}
+def is_bad(v):
+    return v >= _first_bad_at
+`;
+    callCode = `first_bad(${tc.n}, is_bad)`;
+  } else {
+    callCode = `${ch.fn}(*_args)`;
+    setupCode = `import json\n_args = json.loads(${JSON.stringify(argsJson)})\n`;
+  }
+
+  const fullCode = `
+${userCode}
+
+${setupCode}
+import json as _json
+_result = ${callCode}
+_json.dumps(_result, default=str)
+`;
+
+  let got;
+  try {
+    const resJson = await py.runPythonAsync(fullCode);
+    got = JSON.parse(resJson);
+  } catch (e) {
+    return { passed: false, error: String(e.message || e) };
+  }
+
+  const expected = tc.expected;
+  const passed = compareResults(got, expected, ch.normalize);
+  return { passed, got, expected };
+}
+
+/* ============================================================
+   COMPARE RESULTS WITH NORMALIZATION
+============================================================ */
+function compareResults(a, b, normalize) {
+  if (normalize === 'sortPair') {
+    if (!Array.isArray(a) || !Array.isArray(b)) return JSON.stringify(a) === JSON.stringify(b);
+    const sa = [...a].sort((x,y)=>x-y);
+    const sb = [...b].sort((x,y)=>x-y);
+    return JSON.stringify(sa) === JSON.stringify(sb);
+  }
+  if (normalize === 'sortArr') {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    const sa = [...a].sort((x,y)=>(''+x).localeCompare(''+y, undefined, {numeric:true}));
+    const sb = [...b].sort((x,y)=>(''+x).localeCompare(''+y, undefined, {numeric:true}));
+    return JSON.stringify(sa) === JSON.stringify(sb);
+  }
+  if (normalize === 'sortGroups') {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    const norm = (g) => g.map(grp => [...grp].sort()).sort((x,y) => JSON.stringify(x).localeCompare(JSON.stringify(y)));
+    return JSON.stringify(norm(a)) === JSON.stringify(norm(b));
+  }
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/* ============================================================
+   UTILS
+============================================================ */
+function formatVal(v) {
+  if (v === null) return 'null';
+  if (v === undefined) return 'undefined';
+  if (typeof v === 'string') return `"${v}"`;
+  return JSON.stringify(v);
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ============================================================
+   BOOT
+============================================================ */
+renderSidebar();
+renderHome();
+bootPyodide();
+</script>
+</body>
+</html>
